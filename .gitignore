@@ -1,0 +1,20 @@
+# Dados e artefatos de experimentos pesados
+data/
+
+# Cache do Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Ambientes virtuais
+venv/
+.venv/
+env/
+
+# IDEs
+.vscode/
+.idea/
+
+# Caches do sistema
+.DS_Store
+Thumbs.db

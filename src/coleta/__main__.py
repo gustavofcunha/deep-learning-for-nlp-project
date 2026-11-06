@@ -1,0 +1,5 @@
+from src.coleta.collector import main
+
+if __name__ == "__main__":
+    main()
+
