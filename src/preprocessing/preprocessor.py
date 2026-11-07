@@ -1,7 +1,9 @@
 import os
 import re
+import sys
 import json
 import time
+import argparse
 import unicodedata
 from typing import Dict, Any, List, Optional
 
@@ -185,6 +187,9 @@ HEADING_STOP_WORDS = {
 
 DEFAULT_INPUT_PATH = os.path.join("data", "raw", "collected_corpus.jsonl")
 DEFAULT_OUTPUT_PATH = os.path.join("data", "processed", "preprocessed_corpus.jsonl")
+DEFAULT_SYNTHETIC_INPUT_PATH = os.path.join("data", "raw", "synthetic_ai.jsonl")
+DEFAULT_SYNTHETIC_OUTPUT_PATH = os.path.join("data", "processed", "synthetic_corpus.jsonl")
+DEFAULT_SEEDS_REFERENCE_PATH = os.path.join("data", "processed", "preprocessed_corpus.jsonl")
 
 def is_title_case_heading(line: str) -> bool:
     #detect title cased section header lines
@@ -501,23 +506,67 @@ def count_total_lines(file_path: str) -> int:
                 count += 1
     return count
 
-def run_preprocessing_pipeline(
-    input_path: str = DEFAULT_INPUT_PATH,
-    output_path: str = DEFAULT_OUTPUT_PATH,
-    max_records: Optional[int] = None,
-) -> Dict[str, Any]:
-    #orchestrate stage 2 text preprocessing with real time progress tracking
-    if not os.path.exists(input_path):
-        raise FileNotFoundError(f"Input file not found: {input_path}")
+def load_seeds_reference(reference_path: str = DEFAULT_SEEDS_REFERENCE_PATH) -> Dict[str, Dict[str, Any]]:
+    #load metadata lookup dictionary from seed reference dataset
+    seeds_map: Dict[str, Dict[str, Any]] = {}
+    if not os.path.exists(reference_path):
+        return seeds_map
+    with open(reference_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line_str = line.strip()
+            if not line_str:
+                continue
+            rec = json.loads(line_str)
+            pid = rec.get("paper_id")
+            if pid:
+                seeds_map[pid] = {
+                    "conference": rec.get("conference") or rec.get("venue"),
+                    "publication_year": rec.get("publication_year") or rec.get("year"),
+                    "authors": rec.get("authors"),
+                    "url": rec.get("url"),
+                    "doi": rec.get("doi"),
+                    "stratum": rec.get("stratum"),
+                    "venue": rec.get("venue") or rec.get("conference"),
+                    "year": rec.get("year") or rec.get("publication_year"),
+                }
+    return seeds_map
 
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+def run_preprocessing_pipeline(
+    input_path: Optional[str] = None,
+    output_path: Optional[str] = None,
+    max_records: Optional[int] = None,
+    seeds_ref_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    #orchestrate text preprocessing with real time progress tracking
+    resolved_input = input_path or DEFAULT_INPUT_PATH
+    if not resolved_input:
+        resolved_input = DEFAULT_INPUT_PATH
+
+    if not output_path:
+        #safeguard output destination based on input file name
+        if "synthetic" in os.path.basename(resolved_input).lower():
+            resolved_output = DEFAULT_SYNTHETIC_OUTPUT_PATH
+        else:
+            resolved_output = DEFAULT_OUTPUT_PATH
+    else:
+        resolved_output = output_path
+
+    if not os.path.exists(resolved_input):
+        raise FileNotFoundError(f"Input file not found: {resolved_input}")
+
+    os.makedirs(os.path.dirname(resolved_output), exist_ok=True)
 
     print("=" * 70, flush=True)
-    print("STARTING SPECIALIZED TEXT PREPROCESSING PIPELINE (STAGE 2)", flush=True)
-    print(f"Input File: {input_path}", flush=True)
-    print(f"Output File: {output_path}", flush=True)
+    print("STARTING SPECIALIZED TEXT PREPROCESSING PIPELINE (STAGE 2 / 3.5)", flush=True)
+    print(f"Input File: {resolved_input}", flush=True)
+    print(f"Output File: {resolved_output}", flush=True)
 
-    total_target = count_total_lines(input_path)
+    seeds_lookup_path = seeds_ref_path or DEFAULT_SEEDS_REFERENCE_PATH
+    seeds_meta = load_seeds_reference(seeds_lookup_path)
+    if seeds_meta:
+        print(f"Loaded Seeds Reference Metadata: {len(seeds_meta)} entries", flush=True)
+
+    total_target = count_total_lines(resolved_input)
     if max_records and max_records < total_target:
         total_target = max_records
 
@@ -531,20 +580,43 @@ def run_preprocessing_pipeline(
     processed_count = 0
     start_time = time.time()
 
-    with open(input_path, "r", encoding="utf-8") as in_f, open(output_path, "w", encoding="utf-8") as out_f:
+    with open(resolved_input, "r", encoding="utf-8") as in_f, open(resolved_output, "w", encoding="utf-8") as out_f:
         for line in in_f:
             if not line.strip():
                 continue
 
             doc = json.loads(line)
             cleaned = preprocess_record(doc)
+
+            #recover metadata from seed reference for synthetic papers if missing
+            pid = cleaned.get("paper_id", "")
+            base_id = pid.replace("synthetic::", "") if pid.startswith("synthetic::") else pid
+            if base_id in seeds_meta:
+                seed = seeds_meta[base_id]
+                if cleaned.get("conference") is None:
+                    cleaned["conference"] = seed.get("conference")
+                if cleaned.get("publication_year") is None:
+                    cleaned["publication_year"] = seed.get("publication_year")
+                if cleaned.get("authors") is None:
+                    cleaned["authors"] = seed.get("authors")
+                if cleaned.get("url") is None:
+                    cleaned["url"] = seed.get("url")
+                if cleaned.get("doi") is None:
+                    cleaned["doi"] = seed.get("doi")
+                if cleaned.get("stratum") is None and seed.get("stratum") is not None:
+                    cleaned["stratum"] = seed.get("stratum")
+                if cleaned.get("venue") is None and seed.get("venue") is not None:
+                    cleaned["venue"] = seed.get("venue")
+                if cleaned.get("year") is None and seed.get("year") is not None:
+                    cleaned["year"] = seed.get("year")
+
             out_f.write(json.dumps(cleaned, ensure_ascii=False) + "\n")
 
             processed_count += 1
             progress_pct = (processed_count / total_target) * 100.0
 
-            conf = cleaned.get("conference", "UNKNOWN")
-            year = cleaned.get("publication_year", 0)
+            conf = cleaned.get("conference") or cleaned.get("venue") or "UNKNOWN"
+            year = cleaned.get("publication_year") or cleaned.get("year") or 0
             raw_title = cleaned.get("title", "")
             short_title = raw_title[:45] + ("..." if len(raw_title) > 45 else "")
 
@@ -567,14 +639,63 @@ def run_preprocessing_pipeline(
     print("PREPROCESSING PIPELINE COMPLETED SUCCESSFULLY", flush=True)
     print(f"Total Papers Processed: {processed_count}", flush=True)
     print(f"Time Elapsed: {elapsed_time:.1f} seconds ({avg_speed:.1f} papers/sec)", flush=True)
-    print(f"Processed Corpus File: {output_path}", flush=True)
+    print(f"Processed Corpus File: {resolved_output}", flush=True)
     print("=" * 70, flush=True)
 
     return {
         "processed_count": processed_count,
         "elapsed_time_sec": elapsed_time,
-        "output_path": output_path,
+        "output_path": resolved_output,
     }
 
+def parse_args(cli_args: Optional[List[str]] = None) -> argparse.Namespace:
+    #parse command line arguments for preprocessing pipeline
+    parser = argparse.ArgumentParser(description="Specialized text preprocessing pipeline with parity masking")
+    parser.add_argument(
+        "positional_input",
+        nargs="?",
+        default=None,
+        help="Optional positional path to input jsonl file",
+    )
+    parser.add_argument(
+        "-i", "--input", "--input-path",
+        dest="input_path",
+        default=None,
+        help="Path to input JSONL file (default: data/raw/collected_corpus.jsonl or data/raw/synthetic_ai.jsonl)",
+    )
+    parser.add_argument(
+        "-o", "--output", "--output-path",
+        dest="output_path",
+        default=None,
+        help="Path to output JSONL file (default: data/processed/preprocessed_corpus.jsonl or data/processed/synthetic_corpus.jsonl)",
+    )
+    parser.add_argument(
+        "--seeds-ref",
+        dest="seeds_ref_path",
+        default=DEFAULT_SEEDS_REFERENCE_PATH,
+        help="Path to seed reference JSONL file for metadata recovery (default: data/processed/preprocessed_corpus.jsonl)",
+    )
+    parser.add_argument(
+        "--max-records",
+        dest="max_records",
+        type=int,
+        default=None,
+        help="Maximum records to process (default: all)",
+    )
+    parsed = parser.parse_args(cli_args)
+    if parsed.positional_input and not parsed.input_path:
+        parsed.input_path = parsed.positional_input
+    return parsed
+
+def main(cli_args: Optional[List[str]] = None) -> None:
+    #cli entry point for executing preprocessing pipeline
+    args = parse_args(cli_args)
+    run_preprocessing_pipeline(
+        input_path=args.input_path,
+        output_path=args.output_path,
+        max_records=args.max_records,
+        seeds_ref_path=args.seeds_ref_path,
+    )
+
 if __name__ == "__main__":
-    run_preprocessing_pipeline()
+    main()

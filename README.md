@@ -73,11 +73,42 @@ Na detecção de autoria científica por modelos neurais, elementos estruturais 
 12. **Padronização de Marcadores de Tópicos (Bullets):** Normalização de marcadores pontuados (`•`, `*`, `▪`) para hífen simples `- `.
 13. **Fusão de Linhas Intra-parágrafo e Preservação Estrutural:** Conversão de quebras físicas de linha de coluna do PDF em espaços contínuos dentro de parágrafos, preservação estrita de quebras duplas de parágrafo (`\n\n`) e itens de listas com marcadores (`- `).
 
+### Execução via Linha de Comando
+
+A esteira opera de forma parametrizada via CLI (`src.preprocessing`), suportando tanto o processamento padrão do corpus humano quanto o pré-processamento de paridade dos artigos sintéticos gerados:
+
+```bash
+# Execução padrão (Etapa 2: pré-processamento do corpus coletado)
+python3 -m src.preprocessing
+
+# Execução de paridade (Etapa 3.5: pré-processamento do corpus sintético)
+python3 -m src.preprocessing -i data/raw/synthetic_ai.jsonl -o data/processed/synthetic_corpus.jsonl
+```
+
 ### Algoritmos e Bibliotecas Utilizadas
 
 * **`unicodedata` (Biblioteca Padrão Python):** Algoritmo de Normalização Canônica NFKC (Unicode Standard Annex #15), realizando a decomposição de compatibilidade seguida pela composição canônica para eliminar artefatos visuais de fontes tipográficas.
 * **`re` (Biblioteca Padrão Python):** Autômato determinístico finito de expressões regulares compiladas para varredura e substituição em passada única $O(N)$ por documento.
 * **`json` (Biblioteca Padrão Python):** Leitura e escrita atômica em fluxo contínuo (*streaming line-by-line*) sem sobrecarga de memória RAM.
+
+---
+
+## 3. Geração Sintética e Pré-processamento de Paridade
+
+Para viabilizar o treinamento supervisionado de modelos detectores, é necessário parear os textos humanos pré-2020 com textos científicos sintéticos gerados por modelos de linguagem de última geração.
+
+### Arquitetura de Geração em Duas Etapas
+
+1. **Extração de Fatos Técnicos (Prompt 1):** A partir das 1.500 sementes humanas descartadas (`provenance_type: 'seed_discarded'`), um modelo aberto de alta densidade informacional (`Qwen/Qwen2.5-7B-Instruct`) resume o problema técnico, formulações matemáticas centrais, literatura prévia e conclusões empíricas.
+2. **Redação Científica Sintética (Prompt 2):** Com base no sumário factual, o modelo redige seções completas (Abstract, Introdução e Conclusão) espelhando a estrutura acadêmica formal, incorporando formulações em LaTeX, citações bibliográficas e links de repositórios.
+3. **Descarte das Sementes Humanas:** Os textos originais das sementes são permanentemente excluídos do treinamento do detector para evitar qualquer vazamento de vocabulário ou tema.
+
+### Pré-processamento de Paridade Científica
+
+O arquivo bruto gerado (`data/raw/synthetic_ai.jsonl`) passa localmente pela mesma esteira determinística de pré-processamento aplicada aos artigos humanos (`src.preprocessing`), gerando o corpus `data/processed/synthetic_corpus.jsonl` com 1.494 artigos rotulados com a classe 1 (IA).
+
+* **Blindagem Idêntica:** Neutralização completa de fórmulas (`[MATH]`), citações (`[CITE]`) e links (`[URL]`), impedindo que o classificador aprenda atalhos espúrios.
+* **Recuperação de Metadados:** Reconstituição de conferência, ano de publicação e autores da semente original para viabilizar validação cruzada balanceada por estrato.
 
 ---
 

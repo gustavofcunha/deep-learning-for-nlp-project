@@ -1,6 +1,7 @@
 #entry point for module execution
-from src.preprocessing.preprocessor import run_preprocessing_pipeline
+import sys
+from src.preprocessing.preprocessor import main
 
 if __name__ == "__main__":
-    run_preprocessing_pipeline()
+    main(sys.argv[1:])
 

@@ -1,17 +1,20 @@
 # Plano de Implementação Técnico
 
-## Visão Geral das Etapas
-1. **Coleta, Organização e Armazenamento:** Coleta estratificada balanceada de 200 artigos por estrato (44 estratos = 8.800 artigos) de NeurIPS, ACL, ICML e ICLR (2015-2025) via APIs e repositórios oficiais, com extração de seções e armazenamento em JSONL.
-2. **Pré-processamento Textual Especializado:** Normalização e mascaramento de artefatos de PDF (citações, fórmulas, cabeçalhos de conferência, URLs e hifens) para blindar a geração e os modelos contra atalhos de aprendizado.
-3. **Geração Sintética com Modelos Abertos e Descarte de Sementes:** Execução do fluxo de duas etapas (extração de fatos técnicos + redação acadêmica sintética) via LLMs abertas de alta velocidade (Qwen 2.5 / Llama 3.1) e descarte definitivo das sementes humanas.
-4. **Caracterização Linguística Contrastiva:** Análise quantitativa de traços gramaticais, diversidade lexical, entidades e n-gramas entre 1.500 artigos humanos de controle e 1.500 artigos sintéticos gerados por LLM.
-5. **Treinamento e Otimização com Optuna:** Fine-tuning de Transformer (SciBERT / DeBERTa-v3) sobre 3.000 artigos balanceados com validação cruzada agrupada por `paper_id`, calibração probabilística e auditoria em teste cego.
-6. **Análise Longitudinal Temporal:** Inferência na série contínua 2015-2025 com 5.800 artigos avaliados (1.000 humanos históricos 100% blindados de treino + 4.800 contemporâneos), correção de prevalência por Rogan-Gladen e cálculo de intervalos de confiança bootstrap 95%.
-7. **Consolidação do Notebook Integrado:** Montagem do caderno Jupyter final em `src/` em estrita conformidade com a hierarquia de células e padrões de execução.
+## Visão Geral das Etapas e Quadro de Status
+
+| Etapa | Descrição Sintética | Módulo / Script | Artefatos Produzidos | Status |
+| :--- | :--- | :--- | :--- | :---: |
+| **1. Coleta e Particionamento** | Extração de Abstract, Introdução e Conclusão de 13.325 artigos (ACL, NeurIPS, ICML, ICLR 2015-2025) com amostragem estratificada. | `src.coleta` | `data/raw/collected_corpus.jsonl` (13.325 tuplas) | **CONCLUÍDA** |
+| **2. Pré-processamento Especializado** | Blindagem contra atalhos (13 etapas: NFKC, des-hifenização, corte de seções, mascaramento `[CITE]`, `[MATH]`, `[URL]`). | `src.preprocessing` | `data/processed/preprocessed_corpus.jsonl` (13.325 tuplas limpas) | **CONCLUÍDA** |
+| **3. Geração Sintética e Paridade** | Geração via Qwen 2.5 7B em Kaggle dual T4 + pré-processamento de paridade local e recuperação de metadados. | `data/raw/synthetic_ai.jsonl` + `src.preprocessing` | `data/processed/synthetic_corpus.jsonl` (1.494 tuplas com rótulo 1) | **CONCLUÍDA** |
+| **4. Caracterização Linguística** | Análise contrastiva quantitativa (diversidade lexical TTR, morfossintaxe spaCy, densidade NER e n-gramas discriminantes). | `src/features/linguistic_analyzer.py` | Métricas textuais, testes de significância estatística e gráficos de densidade | **PENDENTE** |
+| **5. Modelagem e Otimização Optuna** | Fine-tuning de SciBERT / DeBERTa-v3 sobre 2.988 artigos balanceados com 5-fold CV agrupado por `paper_id` e teste cego. | `src/models/trainer.py` | Checkpoint calibrado, relatório de métricas e matriz de confusão | **PENDENTE** |
+| **6. Análise Longitudinal Temporal** | Inferência na série temporal 2015-2025 (5.800 artigos), correção de prevalência Rogan-Gladen e bootstrap 95%. | `src/evaluation/longitudinal_analyzer.py` | Série temporal ajustada, curvas de prevalência e intervalos de confiança | **PENDENTE** |
+| **7. Notebook Integrado** | Consolidação do fluxo em caderno Jupyter com numeração hierárquica e validação de sintaxe. | `src/pipeline_completo.ipynb` | Caderno executável e auditável | **PENDENTE** |
 
 ---
 
-## 1. Coleta, Organização e Armazenamento
+## 1. Coleta, Organização e Armazenamento [CONCLUÍDA]
 
 ### 1.1 Decisão Arquitetural: Script vs. Notebook com GPU
 * **Decisão:** A coleta é implementada como script Python modular (`src/data/collector.py`) executado em CPU local ou em nuvem sem GPU.
@@ -71,7 +74,7 @@ Para viabilizar a execução local autônoma e segura ao longo de uma noite (dur
 
 ---
 
-## 2. Pré-processamento Textual Especializado
+## 2. Pré-processamento Textual Especializado [CONCLUÍDA]
 
 ### 2.1 Justificativa Baseada na Literatura
 Na detecção de autoria científica (Kobak et al., 2024; Liang et al., 2024), elementos estruturais não linguísticos causam atalhos espúrios (*shortcut learning*):
@@ -115,7 +118,7 @@ O módulo `src/preprocessing/preprocessor.py` executa a seguinte cadeia determin
 
 ---
 
-## 3. Geração Sintética com Qwen 2.5 e Descarte de Sementes
+## 3. Geração Sintética com Qwen 2.5 e Descarte de Sementes [CONCLUÍDA]
 
 ### 3.1 Modelo Selecionado
 * **Modelo Oficial:** `Qwen/Qwen2.5-7B-Instruct` (família de pesos abertos de alta escala da Alibaba).
@@ -211,19 +214,22 @@ Na literatura de detecção de IA acadêmica (Liang et al., 2024; Tang et al., 2
 
 ### 3.5 Fluxo de Dados e Pré-processamento de Paridade
 Para assegurar integridade metodológica e reprodutibilidade:
-1. **Geração no Kaggle:** O notebook no Kaggle consome as 1.500 sementes extraídas de `data/raw/collected_corpus.jsonl` (onde `provenance_type == 'seed_discarded'`), executa os prompts em lote via vLLM e salva os textos sintéticos brutos gerados em `data/raw/synthetic_corpus_raw.jsonl`.
+1. **Geração no Kaggle:** O notebook no Kaggle consome as sementes extraídas de `data/raw/collected_corpus.jsonl` (onde `provenance_type == 'seed_discarded'`), executa os prompts em lote via vLLM e salva os textos sintéticos brutos gerados em `data/raw/synthetic_ai.jsonl` (1.494 artigos gerados).
 2. **Isolamento de Pré-processamento:** O pré-processamento de paridade **não é executado dentro do notebook Kaggle**.
-3. **Higienização Determinística Local:** O arquivo bruto gerado é transferido para o repositório local e submetido ao mesmo script padronizado de pré-processamento (`src/preprocessing/preprocessor.py`). O corpus sintético final limpo é gravado em `data/processed/synthetic_corpus.jsonl`.
-4. **Paridade Científica Estrita:** Esse desacoplamento assegura que tanto os textos humanos quanto os textos sintéticos passem com exatidão pela mesma esteira de des-hifenização, normalização Unicode NFKC, expurgo de e-mails/legendas e mascaramento de atalhos (`[CITE]`, `[MATH]`, `[URL]`), eliminando discrepâncias acidentais entre ambientes.
-5. **Preservação e Quarentena das Sementes (`seed_discarded`):** Os textos humanos originais das 1.500 sementes permanecem catalogados em `data/raw/collected_corpus.jsonl` com `provenance_type = 'seed_discarded'` e `label = None`. Eles são estritamente excluídos do treinamento, validação e teste dos modelos classificadores, servindo unicamente para auditoria de proveniência científica.
+3. **Higienização Determinística Local:** O arquivo bruto gerado é transferido para o repositório local e submetido ao mesmo script padronizado de pré-processamento de forma parametrizada:
+   ```bash
+   python3 -m src.preprocessing -i data/raw/synthetic_ai.jsonl -o data/processed/synthetic_corpus.jsonl
+   ```
+4. **Recuperação de Metadados e Paridade Científica Estrita:** O script recupera automaticamente a conferência (`conference`), o ano de publicação (`publication_year`), os autores e metadados estruturais a partir das sementes descartadas de referência, assegurando que tanto os textos humanos quanto os textos sintéticos passem com exatidão pela mesma esteira de des-hifenização, normalização Unicode NFKC, expurgo de e-mails/legendas e mascaramento de atalhos (`[CITE]`, `[MATH]`, `[URL]`), eliminando discrepâncias acidentais entre ambientes.
+5. **Preservação e Quarentena das Sementes (`seed_discarded`):** Os textos humanos originais das sementes permanecem catalogados em `data/raw/collected_corpus.jsonl` com `provenance_type = 'seed_discarded'` e `label = None`. Eles são estritamente excluídos do treinamento, validação e teste dos modelos classificadores, servindo unicamente para auditoria de proveniência científica.
 
-* **Saída:** Arquivo sintético bruto `data/raw/synthetic_corpus_raw.jsonl` e arquivo sintético pré-processado `data/processed/synthetic_corpus.jsonl` (1.500 artigos com rótulo $1$).
+* **Saída:** Arquivo sintético bruto `data/raw/synthetic_ai.jsonl` e arquivo sintético pré-processado `data/processed/synthetic_corpus.jsonl` (1.494 artigos com rótulo $1$).
 
 ---
 
-## 4. Caracterização Linguística Contrastiva
+## 4. Caracterização Linguística Contrastiva [PENDENTE]
 
-Executada pelo módulo `src/features/linguistic_analyzer.py` sobre o conjunto balanceado de 3.000 artigos (1.500 $S_{\text{human}}$ vs. 1.500 $S_{\text{synthetic}}$):
+Executada pelo módulo `src/features/linguistic_analyzer.py` sobre o conjunto balanceado de 2.988 artigos (1.494 $S_{\text{human}}$ vs. 1.494 $S_{\text{synthetic}}$):
 1. **Diversidade Lexical:** Cálculo de Type-Token Ratio (TTR), Root TTR ($TTR_{\text{root}} = \frac{V}{\sqrt{N}}$) e Densidade Lexical (proporção de substantivos, verbos, adjetivos e advérbios).
 2. **Morfossintaxe via spaCy (`en_core_web_sm`):** Frequência normalizada por 1.000 palavras de:
    * Voz passiva analítica vs. ativa.
@@ -237,13 +243,13 @@ Executada pelo módulo `src/features/linguistic_analyzer.py` sobre o conjunto ba
 
 ---
 
-## 5. Treinamento do Modelo com CV e Otimização com Optuna
+## 5. Treinamento do Modelo com CV e Otimização com Optuna [PENDENTE]
 
 ### 5.1 Estratégia de Particionamento
-* Corpus de 3.000 instâncias particionado por `paper_id`:
-  * **Treino (70% = 2.100 instâncias):** 1.050 Humanos, 1.050 IA.
-  * **Validação (15% = 450 instâncias):** 225 Humanos, 225 IA, para busca de hiperparâmetros e calibração.
-  * **Teste Cego Blindado (15% = 450 instâncias):** 225 Humanos, 225 IA, isolado durante toda a fase de tuning.
+* Corpus de 2.988 instâncias particionado por `paper_id`:
+  * **Treino (70% = 2.092 instâncias):** 1.046 Humanos, 1.046 IA.
+  * **Validação (15% = 448 instâncias):** 224 Humanos, 224 IA, para busca de hiperparâmetros e calibração.
+  * **Teste Cego Blindado (15% = 448 instâncias):** 224 Humanos, 224 IA, isolado durante toda a fase de tuning.
 
 ### 5.2 Otimização de Hiperparâmetros via Optuna
 * **Validação Cruzada:** 5-Fold Stratified Cross-Validation agrupada estritamente por `paper_id`.
@@ -259,13 +265,13 @@ Executada pelo módulo `src/features/linguistic_analyzer.py` sobre o conjunto ba
 
 ### 5.3 Calibração de Probabilidades e Avaliação Final
 * Ajuste de *Temperature Scaling* ou *Platt Scaling* nos logits dos folds de validação.
-* Avaliação final do checkpoint calibrado no Teste Cego Blindado (450 artigos):
+* Avaliação final do checkpoint calibrado no Teste Cego Blindado (448 artigos):
   * F1-Score Macro, Acurácia, AUC-ROC e Precisão.
   * Matriz de confusão com monitoramento da taxa de falsos positivos ($FPR \le 0.02$).
 
 ---
 
-## 6. Análise Longitudinal Temporal (2015 a 2025)
+## 6. Análise Longitudinal Temporal (2015 a 2025) [PENDENTE]
 
 Executada pelo módulo `src/evaluation/longitudinal_analyzer.py`:
 1. **Inferência no Corpus Temporal (5.800 artigos):**
@@ -278,7 +284,7 @@ Executada pelo módulo `src/evaluation/longitudinal_analyzer.py`:
 
 ---
 
-## 7. Notebook Python Integrado
+## 7. Notebook Python Integrado [PENDENTE]
 
 * **Localização:** `src/pipeline_completo.ipynb`.
 * **Padrões de Construção:**
