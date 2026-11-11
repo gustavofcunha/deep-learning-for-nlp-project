@@ -2,15 +2,14 @@
 
 ## Visão Geral das Etapas e Quadro de Status
 
-| Etapa | Descrição Sintética | Módulo / Script | Artefatos Produzidos | Status |
+| Etapa | Descrição Sintética | Módulo / Notebook | Artefatos Produzidos | Status |
 | :--- | :--- | :--- | :--- | :---: |
 | **1. Coleta e Particionamento** | Extração de Abstract, Introdução e Conclusão de 13.325 artigos (ACL, NeurIPS, ICML, ICLR 2015-2025) com amostragem estratificada. | `src.coleta` | `data/raw/collected_corpus.jsonl` (13.325 tuplas) | **CONCLUÍDA** |
 | **2. Pré-processamento Especializado** | Blindagem contra atalhos (13 etapas: NFKC, des-hifenização, corte de seções, mascaramento `[CITE]`, `[MATH]`, `[URL]`). | `src.preprocessing` | `data/processed/preprocessed_corpus.jsonl` (13.325 tuplas limpas) | **CONCLUÍDA** |
-| **3. Geração Sintética e Paridade** | Geração via Qwen 2.5 7B em Kaggle dual T4 + pré-processamento de paridade local e recuperação de metadados. | `data/raw/synthetic_ai.jsonl` + `src.preprocessing` | `data/processed/synthetic_corpus.jsonl` (1.494 tuplas com rótulo 1) | **CONCLUÍDA** |
-| **4. Caracterização Linguística** | Análise contrastiva quantitativa (diversidade lexical TTR, morfossintaxe spaCy, densidade NER e n-gramas discriminantes). | `src/features/linguistic_analyzer.py` | Métricas textuais, testes de significância estatística e gráficos de densidade | **PENDENTE** |
-| **5. Modelagem e Otimização Optuna** | Fine-tuning de SciBERT / DeBERTa-v3 sobre 2.988 artigos balanceados com 5-fold CV agrupado por `paper_id` e teste cego. | `src/models/trainer.py` | Checkpoint calibrado, relatório de métricas e matriz de confusão | **PENDENTE** |
-| **6. Análise Longitudinal Temporal** | Inferência na série temporal 2015-2025 (5.800 artigos), correção de prevalência Rogan-Gladen e bootstrap 95%. | `src/evaluation/longitudinal_analyzer.py` | Série temporal ajustada, curvas de prevalência e intervalos de confiança | **PENDENTE** |
-| **7. Notebook Integrado** | Consolidação do fluxo em caderno Jupyter com numeração hierárquica e validação de sintaxe. | `src/pipeline_completo.ipynb` | Caderno executável e auditável | **PENDENTE** |
+| **3. Geração Sintética e Paridade** | Geração via Qwen 2.5 7B em Kaggle dual T4 + pré-processamento de paridade local e recuperação de metadados. | `src/notebooks/qwen_synthetic_generation.ipynb` + `src.preprocessing` | `data/processed/synthetic_corpus.jsonl` (1.494 tuplas com rótulo 1) | **CONCLUÍDA** |
+| **4. Caracterização Linguística** | Análise contrastiva quantitativa (diversidade lexical TTR, morfossintaxe spaCy, densidade NER e n-gramas discriminantes). | `src/notebooks/end_to_end_pipeline.ipynb` | Métricas textuais, testes de significância estatística e gráficos de densidade | **EM ANDAMENTO** |
+| **5. Modelagem e Otimização Optuna** | Fine-tuning de SciBERT / DeBERTa-v3 sobre 2.988 artigos balanceados com 5-fold CV agrupado por `paper_id` e GPU T4 (Colab). | `src/notebooks/end_to_end_pipeline.ipynb` | Checkpoint calibrado, relatório de métricas e matriz de confusão | **PENDENTE** |
+| **6. Análise Longitudinal Temporal** | Inferência na série temporal 2015-2025 (5.800 artigos), correção de prevalência Rogan-Gladen e bootstrap 95%. | `src/notebooks/end_to_end_pipeline.ipynb` | Série temporal ajustada, curvas de prevalência e intervalos de confiança | **PENDENTE** |
 
 ---
 
@@ -245,13 +244,18 @@ Executada pelo módulo `src/features/linguistic_analyzer.py` sobre o conjunto ba
 
 ## 5. Treinamento do Modelo com CV e Otimização com Optuna [PENDENTE]
 
-### 5.1 Estratégia de Particionamento
+### 5.1 Ambiente de Execução e Aceleração por Hardware
+* **Ambiente de Treinamento:** Execução oficial em ambiente Google Colab com acelerador de hardware Nvidia Tesla T4 GPU (16 GB GDDR6 VRAM).
+* **Precisão Numérica Mista (`fp16=True`):** Utilização de precisão mista de ponto flutuante de 16 bits para acelerar o treinamento dos modelos neurais nos Tensor Cores da arquitetura Turing e reduzir o consumo de memória de ativação.
+* **Orquestração Integrada:** O treinamento, tuning de hiperparâmetros com Optuna e avaliação são conduzidos de forma modular diretamente no caderno `src/notebooks/end_to_end_pipeline.ipynb`.
+
+### 5.2 Estratégia de Particionamento
 * Corpus de 2.988 instâncias particionado por `paper_id`:
   * **Treino (70% = 2.092 instâncias):** 1.046 Humanos, 1.046 IA.
   * **Validação (15% = 448 instâncias):** 224 Humanos, 224 IA, para busca de hiperparâmetros e calibração.
   * **Teste Cego Blindado (15% = 448 instâncias):** 224 Humanos, 224 IA, isolado durante toda a fase de tuning.
 
-### 5.2 Otimização de Hiperparâmetros via Optuna
+### 5.3 Otimização de Hiperparâmetros via Optuna
 * **Validação Cruzada:** 5-Fold Stratified Cross-Validation agrupada estritamente por `paper_id`.
 * **Métrica Objetivo:** Média do F1-Score Macro nos folds de validação:
   $$F1_{\text{Macro}} = \frac{F1_{\text{Humano}} + F1_{\text{IA}}}{2}$$
@@ -263,7 +267,7 @@ Executada pelo módulo `src/features/linguistic_analyzer.py` sobre o conjunto ba
   * Dropout da cabeça linear: uniforme entre 0.1 e 0.25.
   * Número de épocas: 3 a 5 (com parada antecipada).
 
-### 5.3 Calibração de Probabilidades e Avaliação Final
+### 5.4 Calibração de Probabilidades e Avaliação Final
 * Ajuste de *Temperature Scaling* ou *Platt Scaling* nos logits dos folds de validação.
 * Avaliação final do checkpoint calibrado no Teste Cego Blindado (448 artigos):
   * F1-Score Macro, Acurácia, AUC-ROC e Precisão.
@@ -273,7 +277,7 @@ Executada pelo módulo `src/features/linguistic_analyzer.py` sobre o conjunto ba
 
 ## 6. Análise Longitudinal Temporal (2015 a 2025) [PENDENTE]
 
-Executada pelo módulo `src/evaluation/longitudinal_analyzer.py`:
+Executada diretamente no caderno `src/notebooks/end_to_end_pipeline.ipynb`:
 1. **Inferência no Corpus Temporal (5.800 artigos):**
    * **2015 a 2019:** Os 1.000 artigos de $S_{\text{temporal}}$ (200 artigos/ano: 50 por conferência), que o classificador nunca viu em nenhuma etapa de treino ou calibração.
    * **2020 a 2025:** Os 4.800 artigos contemporâneos coletados sob amostragem estratificada (800 artigos/ano: 200 por conferência).
@@ -281,14 +285,3 @@ Executada pelo módulo `src/evaluation/longitudinal_analyzer.py`:
    $$P_{\text{ajustada}} = \frac{\hat{P}_{\text{bruta}} + Sp - 1}{Se + Sp - 1}$$
 3. **Incerteza Estatística via Bootstrap:** Geração de 1.000 réplicas de reamostragem não paramétrica por ano e por conferência para traçar intervalos de confiança de 95%.
 4. **Verificação de Hipótese:** Avaliação do comportamento da curva ano a ano, validando a taxa base de controle pré-2020 e quantificando o salto a partir de 2023.
-
----
-
-## 7. Notebook Python Integrado [PENDENTE]
-
-* **Localização:** `src/pipeline_completo.ipynb`.
-* **Padrões de Construção:**
-  * Célula de cabeçalho inicial com título do projeto, identificação acadêmica e declaração de integridade.
-  * Numeração hierárquica no comentário da primeira linha de cada célula de código (`#CELL S.C - BRIEF DESCRIPTION IN 1 SENTENCE`).
-  * Centralização estrita de dependências (`%pip install`) e declarações `import` na Seção 1.
-  * Validação prévia de sintaxe e compilação de todas as células via AST.

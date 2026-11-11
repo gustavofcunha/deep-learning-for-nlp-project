@@ -1,5 +1,9 @@
-# Dados e artefatos de experimentos pesados
-data/
+# Dados e artefatos de experimentos pesados (mantendo apenas os .jsonl.gz processados)
+data/*
+!data/processed/
+data/processed/*
+!data/processed/preprocessed_corpus.jsonl.gz
+!data/processed/synthetic_corpus.jsonl.gz
 
 # Cache do Python
 __pycache__/

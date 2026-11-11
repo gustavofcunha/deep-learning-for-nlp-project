@@ -49,7 +49,8 @@ A amostragem foi estruturada em 44 estratos (4 conferências $\times$ 11 anos) d
 | **Pré-2020 ($\le 2019$)** | `human_ground_truth` | `0` (Humano) | 1.500 | Componente humano balanceado para treino e validação do classificador supervisionado. |
 | **Pré-2020 ($\le 2019$)** | `human_temporal_blind` | `0` (Humano) | 2.462 | Grupo de controle histórico cego para auditar taxa de falsos positivos no pré-LLM. |
 | **Pós-2020 ($\ge 2020$)** | `longitudinal_unlabeled` | `None` (Não Rotulado) | 7.863 | Série temporal contemporânea para inferência e análise da prevalência de IA ano a ano. |
-| **Total Global** | | | **13.325** | Corpus científico completo e particionado. |
+| **Pré-2020 ($\le 2019$)** (Espelho IA) | `synthetic_ai` | `1` (IA) | 1.494 | Artigos sintéticos gerados via `Qwen/Qwen2.5-7B-Instruct` a partir das sementes; classe positiva na modelagem supervisionada. |
+| **Total Global** | | | **14.819** | Corpus consolidado (13.325 artigos coletados + 1.494 artigos sintéticos gerados por IA). |
 
 ---
 
@@ -109,6 +110,50 @@ O arquivo bruto gerado (`data/raw/synthetic_ai.jsonl`) passa localmente pela mes
 
 * **Blindagem Idêntica:** Neutralização completa de fórmulas (`[MATH]`), citações (`[CITE]`) e links (`[URL]`), impedindo que o classificador aprenda atalhos espúrios.
 * **Recuperação de Metadados:** Reconstituição de conferência, ano de publicação e autores da semente original para viabilizar validação cruzada balanceada por estrato.
+
+---
+
+## 4. Cadernos de Execução e Experimentação
+
+Os experimentos interativos, a geração em larga escala com aceleradores de hardware e a esteira ponta a ponta de modelagem e inferência são organizados no diretório [`src/notebooks/`](src/notebooks/):
+
+1. **[`qwen_synthetic_generation.ipynb`](src/notebooks/qwen_synthetic_generation.ipynb):**  
+   Caderno parametrizado para geração em lote dos artigos científicos sintéticos espelhados. Projetado para execução em cluster dual Nvidia Tesla T4 (Kaggle ou Google Colab), orquestrando o modelo `Qwen/Qwen2.5-7B-Instruct` via biblioteca `vLLM` com quantização de 4 bits (AWQ) para respeitar limites de memória VRAM. Realiza a extração factual em duas etapas e armazena os registros brutos em `data/raw/synthetic_ai.jsonl`.
+
+2. **[`end_to_end_pipeline.ipynb`](src/notebooks/end_to_end_pipeline.ipynb):**  
+   Caderno principal e entregável do projeto. Centraliza todas as fases empíricas em um fluxo executável único:
+   * **Seção 1 (Setup & Environment):** Instalação de bibliotecas, sementes determinísticas (`seed = 42`) e inspeção de aceleração por GPU.
+   * **Seção 2 (Data Acquisition & Corpus Overview):** Resolução dinâmica de caminhos (compatível com execução local ou download automático das versões comprimidas `.jsonl.gz` direto do GitHub no Google Colab), carregamento das partições e montagem do conjunto balanceado de 2.988 artigos.
+   * **Seção 3 (Linguistic Characterization):** Análise contrastiva quantitativa de métricas textuais (diversidade lexical TTR, densidade de entidades nomeadas e padrões morfossintáticos).
+   * **Seção 4 (Supervised Modelling & Optuna Tuning):** Treinamento supervisionado com validação cruzada em 5 folds agrupada por artigo e busca bayesiana de hiperparâmetros com Optuna.
+   * **Seção 5 (Longitudinal Temporal Analysis):** Avaliação de infiltração na série histórica 2015-2025 com correção estatística de prevalência (Rogan-Gladen) e intervalos de confiança por bootstrap.
+
+---
+
+## 5. Estrutura do Repositório
+
+```text
+Projeto-Final-APPNL/
+├── data/
+│   ├── processed/          # Conjuntos processados e versões comprimidas (.jsonl.gz)
+│   └── raw/                # Dados brutos coletados e saídas brutas do LLM
+├── spec/
+│   └── plan.md             # Especificação e plano técnico detalhado
+├── src/
+│   ├── coleta/             # Scripts modulares de coleta via scraping e APIs
+│   │   ├── collector.py
+│   │   └── utils.py
+│   ├── notebooks/          # Cadernos Jupyter de experimentação e modelagem
+│   │   ├── end_to_end_pipeline.ipynb
+│   │   └── qwen_synthetic_generation.ipynb
+│   └── preprocessing/      # Esteira determinística de 13 etapas de limpeza
+│       ├── __init__.py
+│       ├── __main__.py
+│       └── preprocessor.py
+├── .gitignore              # Regras de exclusão para arquivos pesados e caches
+├── AGENTS.md               # Manual de engenharia e governança de desenvolvimento
+└── README.md               # Apresentação do projeto e guia para reprodução
+```
 
 ---
 
