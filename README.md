@@ -100,9 +100,74 @@ Para viabilizar o treinamento supervisionado de modelos detectores, é necessár
 
 ### Arquitetura de Geração em Duas Etapas
 
-1. **Extração de Fatos Técnicos (Prompt 1):** A partir das 1.500 sementes humanas descartadas (`provenance_type: 'seed_discarded'`), um modelo aberto de alta densidade informacional (`Qwen/Qwen2.5-7B-Instruct`) resume o problema técnico, formulações matemáticas centrais, literatura prévia e conclusões empíricas.
-2. **Redação Científica Sintética (Prompt 2):** Com base no sumário factual, o modelo redige seções completas (Abstract, Introdução e Conclusão) espelhando a estrutura acadêmica formal, incorporando formulações em LaTeX, citações bibliográficas e links de repositórios.
+1. **Extração de Fatos Técnicos (Prompt 1):** A partir das 1.500 sementes humanas descartadas brutas lidas de `data/raw/collected_corpus.jsonl` (`provenance_type: 'seed_discarded'`), o modelo aberto `Qwen/Qwen2.5-7B-Instruct` resume o problema técnico, formulações matemáticas (quando presentes na fonte), literatura prévia com suas citações exatas (nominais ou numéricas) pareadas a sínteses parafraseadas e conclusões empíricas, ignorando ruídos de extração de PDF.
+2. **Redação Científica Sintética (Prompt 2):** Com base exclusivamente no sumário factual, o modelo redige seções completas (Abstract, Introdução e Conclusão) em prosa acadêmica natural, respeitando os comprimentos médios dos artigos humanos e replicando as citações extraídas (autor-ano ou numéricas) sem cópia literal.
 3. **Descarte das Sementes Humanas:** Os textos originais das sementes são permanentemente excluídos do treinamento do detector para evitar qualquer vazamento de vocabulário ou tema.
+
+### Prompts Oficiais de Geração
+
+#### Prompt 1: Extração de Fatos Técnicos
+
+* **System Prompt:**
+  ```text
+  You are an expert scientific analyst specializing in machine learning and computational linguistics. Your task is to analyze the provided raw paper sections and extract their core technical facts into a concise, factual JSON structure. Silently normalize PDF extraction artifacts (such as broken line-wrap hyphens or ligatures) and ignore non-prose noise (figure/table captions, conference headers or years, author emails, footnote markers, pseudocode listings, and any leaked reference lists or downstream sections). Do not include introductory filler, conversational pleasantries, or stylistic evaluations.
+  ```
+
+* **User Prompt Template:**
+  ```text
+  Extract the core technical substance from the raw scientific paper sections below into a structured JSON object.
+
+  [INPUT SECTIONS]
+  Title: {title}
+  Abstract: {abstract}
+  Introduction: {introduction}
+  Conclusion: {conclusion}
+
+  [OUTPUT FORMAT]
+  Output strictly a valid JSON object matching this schema (exclude paper-level metadata such as venue names, publication years of this paper, author affiliations, or figure/table numbers):
+  {
+    "problem_statement": "The core research question and technical challenge addressed.",
+    "core_methodology": "The key proposed model, theoretical framework, and formal mechanisms (include equations and variable notations in LaTeX $...$ only if mathematical expressions or formal symbols appear in the source text).",
+    "empirical_findings": "The quantitative benchmarks, experimental evidence, datasets, and verified results.",
+    "related_work_and_baselines": "All cited prior works, foundational claims, and baseline methods from the text, pairing each exact citation marker as written (whether author-year such as Author et al. (Year) / (Author and Author, Year), or numeric brackets such as [1], [2, 5]) with a concise paraphrased summary (in your own words, not verbatim prose) of the specific claim, method, or finding that citation supports.",
+    "resources_and_urls": "Any public code repository links, dataset URLs, or project artifacts explicitly mentioned in the prose (excluding author emails or publisher footers).",
+    "main_conclusions": "The concluding takeaways, practical implications, and future research avenues."
+  }
+  ```
+
+#### Prompt 2: Redação Científica Sintética
+
+* **System Prompt:**
+  ```text
+  You are an expert AI researcher drafting a peer-reviewed academic conference paper in machine learning or computational linguistics. Using strictly the provided technical facts, write three complete, formal, and authoritative scientific paper sections: Abstract, Introduction, and Conclusion.
+  Maintain natural academic prose, clear paragraph transitions, and varied sentence structure typical of published peer-reviewed papers. Strictly respect the requested word-count target for each section without padding or truncating prematurely. Never include venue names, author details, figure/table numbers (e.g., Figure 1, Table 2), or PDF formatting artifacts. Output strictly a valid JSON object containing the exact keys "abstract", "introduction", and "conclusion".
+  ```
+
+* **User Prompt Template:**
+  ```text
+  Using exclusively the technical facts provided below, write a new, complete, and formal academic paper comprising an Abstract, Introduction, and Conclusion.
+
+  [TECHNICAL FACTS]
+  Problem: {problem_statement}
+  Methodology & Math: {core_methodology}
+  Prior Literature & Baselines: {related_work_and_baselines}
+  Findings: {empirical_findings}
+  Resources & URLs: {resources_and_urls}
+  Conclusions: {main_conclusions}
+
+  [SECTION REQUIREMENTS]
+  1. abstract: A dense, self-contained summary strictly within 130 to 170 words (target ~145 words) framing the problem, the proposed approach, key technical mechanisms, and principal empirical findings.
+  2. introduction: A comprehensive introduction strictly within 550 to 750 words (target ~600 words, developed across 4 to 6 substantial paragraphs) contextualizing the domain, motivating and formalizing the problem, and actively grounding background claims in Prior Literature & Baselines. Replicate the exact citation markers provided in Prior Literature & Baselines alongside the paraphrased claims they support: preserve nominal author-year style when provided (mixing narrative, e.g., Author et al. (Year), and parenthetical, e.g., (Author et al., Year)), and replicate the exact numeric bracket citations (e.g., [1], [2, 5]) when numeric citations are provided. Never invent author names, years, or citation numbers not present in the facts. Explain the proposed methodology clearly (using inline LaTeX $...$ only when mathematical formulations are present in the facts), mention resource or repository links if provided, and conclude the introduction in cohesive academic prose synthesizing the paper's main findings and contributions without forcing a templated bulleted list.
+  3. conclusion: A formal closing section strictly within 180 to 250 words (target ~210 words, 1 to 2 substantial paragraphs) synthesizing the main findings, noting limitations or scope boundaries, and outlining future directions.
+
+  [OUTPUT FORMAT]
+  Output strictly a valid JSON object:
+  {
+    "abstract": "...",
+    "introduction": "...",
+    "conclusion": "..."
+  }
+  ```
 
 ### Pré-processamento de Paridade Científica
 
@@ -123,8 +188,8 @@ Os experimentos interativos, a geração em larga escala com aceleradores de har
 2. **[`end_to_end_pipeline.ipynb`](src/notebooks/end_to_end_pipeline.ipynb):**  
    Caderno principal e entregável do projeto. Centraliza todas as fases empíricas em um fluxo executável único:
    * **Seção 1 (Setup & Environment):** Instalação de bibliotecas, sementes determinísticas (`seed = 42`) e inspeção de aceleração por GPU.
-   * **Seção 2 (Data Acquisition & Corpus Overview):** Resolução dinâmica de caminhos (compatível com execução local ou download automático das versões comprimidas `.jsonl.gz` direto do GitHub no Google Colab), carregamento das partições e montagem do conjunto balanceado de 2.988 artigos.
-   * **Seção 3 (Linguistic Characterization):** Análise contrastiva quantitativa de métricas textuais (diversidade lexical TTR, densidade de entidades nomeadas e padrões morfossintáticos).
+   * **Seção 2 (Data Acquisition & Corpus Overview):** Resolução dinâmica de caminhos (compatível com execução local ou download automático das versões comprimidas `.jsonl.gz` direto do GitHub no Google Colab), carregamento das partições e montagem do conjunto de modelagem de 2.994 artigos (1.500 humanos e 1.494 sintéticos).
+   * **Seção 3 (Linguistic Characterization):** Análise contrastiva quantitativa entre `Human` e `AI` (tabela de distribuição por conferência e ano, boxplots de comprimento por seção em `Abstract`, `Introduction` e `Conclusion` com testes de significância, curvas de densidade para burstiness sentencial, densidade lexical e complexidade sintática, POS-tagging com legenda de siglas, templates sintáticos, n-gramas por incidência documental e evolução diacrônica longitudinal do vocabulário de excesso sobre os 13.325 artigos coletados).
    * **Seção 4 (Supervised Modelling & Optuna Tuning):** Treinamento supervisionado com validação cruzada em 5 folds agrupada por artigo e busca bayesiana de hiperparâmetros com Optuna.
    * **Seção 5 (Longitudinal Temporal Analysis):** Avaliação de infiltração na série histórica 2015-2025 com correção estatística de prevalência (Rogan-Gladen) e intervalos de confiança por bootstrap.
 
