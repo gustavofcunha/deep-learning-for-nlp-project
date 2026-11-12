@@ -49,8 +49,8 @@ A amostragem foi estruturada em 44 estratos (4 conferências $\times$ 11 anos) d
 | **Pré-2020 ($\le 2019$)** | `human_ground_truth` | `0` (Humano) | 1.500 | Componente humano balanceado para treino e validação do classificador supervisionado. |
 | **Pré-2020 ($\le 2019$)** | `human_temporal_blind` | `0` (Humano) | 2.462 | Grupo de controle histórico cego para auditar taxa de falsos positivos no pré-LLM. |
 | **Pós-2020 ($\ge 2020$)** | `longitudinal_unlabeled` | `None` (Não Rotulado) | 7.863 | Série temporal contemporânea para inferência e análise da prevalência de IA ano a ano. |
-| **Pré-2020 ($\le 2019$)** (Espelho IA) | `synthetic_ai` | `1` (IA) | 1.494 | Artigos sintéticos gerados via `Qwen/Qwen2.5-7B-Instruct` a partir das sementes; classe positiva na modelagem supervisionada. |
-| **Total Global** | | | **14.819** | Corpus consolidado (13.325 artigos coletados + 1.494 artigos sintéticos gerados por IA). |
+| **Pré-2020 ($\le 2019$)** (Espelho IA) | `synthetic_ai` | `1` (IA) | 1.461 | Artigos sintéticos gerados via `Qwen/Qwen2.5-7B-Instruct` a partir das sementes; classe positiva na modelagem supervisionada. |
+| **Total Global** | | | **14.786** | Corpus consolidado (13.325 artigos coletados + 1.461 artigos sintéticos gerados por IA). |
 
 ---
 
@@ -108,46 +108,46 @@ Para viabilizar o treinamento supervisionado de modelos detectores, é necessár
 
 #### Prompt 1: Extração de Fatos Técnicos
 
-* **System Prompt:**
+* **Prompt de Sistema:**
   ```text
-  You are an expert scientific analyst specializing in machine learning and computational linguistics. Your task is to analyze the provided raw paper sections and extract their core technical facts into a concise, factual JSON structure. Silently normalize PDF extraction artifacts (such as broken line-wrap hyphens or ligatures) and ignore non-prose noise (figure/table captions, conference headers or years, author emails, footnote markers, pseudocode listings, and any leaked reference lists or downstream sections). Do not include introductory filler, conversational pleasantries, or stylistic evaluations.
+  Você é um analista científico especialista em aprendizado de máquina e linguística computacional. Sua tarefa é analisar as seções brutas do artigo fornecido e extrair seus fatos técnicos centrais em uma estrutura JSON concisa e factual. Normalize silenciosamente artefatos de extração de PDF (como hifens quebrados em quebras de linha ou ligaduras) e ignore ruídos que não sejam texto em prosa (legendas de figuras/tabelas, cabeçalhos ou anos de conferências, e-mails de autores, marcadores de notas de rodapé, listagens de pseudocódigo e quaisquer listas de referências vazadas ou seções posteriores). Não inclua preâmbulos introdutórios, cortesias conversacionais ou avaliações estilísticas.
   ```
 
-* **User Prompt Template:**
+* **Modelo de Prompt do Usuário:**
   ```text
-  Extract the core technical substance from the raw scientific paper sections below into a structured JSON object.
+  Extraia a essência técnica central das seções brutas do artigo científico abaixo em um objeto JSON estruturado.
 
-  [INPUT SECTIONS]
+  [SEÇÕES DE ENTRADA]
   Title: {title}
   Abstract: {abstract}
   Introduction: {introduction}
   Conclusion: {conclusion}
 
-  [OUTPUT FORMAT]
-  Output strictly a valid JSON object matching this schema (exclude paper-level metadata such as venue names, publication years of this paper, author affiliations, or figure/table numbers):
+  [FORMATO DE SAÍDA]
+  Produza estritamente um objeto JSON válido compatível com este esquema (exclua metadados no nível do artigo, como nomes de conferências, anos de publicação deste artigo, afiliações de autores ou números de figuras/tabelas):
   {
-    "problem_statement": "The core research question and technical challenge addressed.",
-    "core_methodology": "The key proposed model, theoretical framework, and formal mechanisms (include equations and variable notations in LaTeX $...$ only if mathematical expressions or formal symbols appear in the source text).",
-    "empirical_findings": "The quantitative benchmarks, experimental evidence, datasets, and verified results.",
-    "related_work_and_baselines": "All cited prior works, foundational claims, and baseline methods from the text, pairing each exact citation marker as written (whether author-year such as Author et al. (Year) / (Author and Author, Year), or numeric brackets such as [1], [2, 5]) with a concise paraphrased summary (in your own words, not verbatim prose) of the specific claim, method, or finding that citation supports.",
-    "resources_and_urls": "Any public code repository links, dataset URLs, or project artifacts explicitly mentioned in the prose (excluding author emails or publisher footers).",
-    "main_conclusions": "The concluding takeaways, practical implications, and future research avenues."
+    "problem_statement": "A questão central de pesquisa e o desafio técnico abordado.",
+    "core_methodology": "O principal modelo proposto, arcabouço teórico e mecanismos formais (inclua equações e notações de variáveis em LaTeX $...$ apenas se expressões matemáticas ou símbolos formais aparecerem no texto original).",
+    "empirical_findings": "Os benchmarks quantitativos, evidências experimentais, conjuntos de dados e resultados verificados.",
+    "related_work_and_baselines": "Todos os trabalhos anteriores citados, afirmações fundamentais e métodos de linha de base do texto, pareando cada marcador exato de citação conforme redigido (seja autor-ano como Autor et al. (Ano) / (Autor e Autor, Ano), ou colchetes numéricos como [1], [2, 5]) com um resumo parafraseado conciso (com suas próprias palavras, sem copiar a prosa literal) da afirmação, método ou resultado específico que a citação sustenta.",
+    "resources_and_urls": "Quaisquer links para repositórios públicos de código, URLs de conjuntos de dados ou artefatos do projeto explicitamente mencionados na prosa (excluindo e-mails de autores ou rodapés de editoras).",
+    "main_conclusions": "As conclusões finais, implicações práticas e direcionamentos para pesquisas futuras."
   }
   ```
 
 #### Prompt 2: Redação Científica Sintética
 
-* **System Prompt:**
+* **Prompt de Sistema:**
   ```text
-  You are an expert AI researcher drafting a peer-reviewed academic conference paper in machine learning or computational linguistics. Using strictly the provided technical facts, write three complete, formal, and authoritative scientific paper sections: Abstract, Introduction, and Conclusion.
-  Maintain natural academic prose, clear paragraph transitions, and varied sentence structure typical of published peer-reviewed papers. Strictly respect the requested word-count target for each section without padding or truncating prematurely. Never include venue names, author details, figure/table numbers (e.g., Figure 1, Table 2), or PDF formatting artifacts. Output strictly a valid JSON object containing the exact keys "abstract", "introduction", and "conclusion".
+  Você é um pesquisador especialista em IA redigindo um artigo para uma conferência acadêmica revisada por pares na área de aprendizado de máquina ou linguística computacional. Utilizando estritamente os fatos técnicos fornecidos, escreva três seções de artigo científico completas, formais e autoritativas: Resumo (Abstract), Introdução (Introduction) e Conclusão (Conclusion).
+  Mantenha uma prosa acadêmica natural, transições claras entre parágrafos e uma estrutura frasal variada típica de artigos revisados por pares já publicados. Respeite estritamente a meta de contagem de palavras solicitada para cada seção sem preenchimentos desnecessários ou truncamentos prematuros. Nunca inclua nomes de conferências, detalhes de autores, números de figuras/tabelas (ex.: Figure 1, Table 2) ou artefatos de formatação de PDF. Produza estritamente um objeto JSON válido contendo exatamente as chaves "abstract", "introduction" e "conclusion".
   ```
 
-* **User Prompt Template:**
+* **Modelo de Prompt do Usuário:**
   ```text
-  Using exclusively the technical facts provided below, write a new, complete, and formal academic paper comprising an Abstract, Introduction, and Conclusion.
+  Utilizando exclusivamente os fatos técnicos fornecidos abaixo, redija um artigo acadêmico novo, completo e formal composto por Resumo (Abstract), Introdução (Introduction) e Conclusão (Conclusion).
 
-  [TECHNICAL FACTS]
+  [FATOS TÉCNICOS]
   Problem: {problem_statement}
   Methodology & Math: {core_methodology}
   Prior Literature & Baselines: {related_work_and_baselines}
@@ -155,13 +155,13 @@ Para viabilizar o treinamento supervisionado de modelos detectores, é necessár
   Resources & URLs: {resources_and_urls}
   Conclusions: {main_conclusions}
 
-  [SECTION REQUIREMENTS]
-  1. abstract: A dense, self-contained summary strictly within 130 to 170 words (target ~145 words) framing the problem, the proposed approach, key technical mechanisms, and principal empirical findings.
-  2. introduction: A comprehensive introduction strictly within 550 to 750 words (target ~600 words, developed across 4 to 6 substantial paragraphs) contextualizing the domain, motivating and formalizing the problem, and actively grounding background claims in Prior Literature & Baselines. Replicate the exact citation markers provided in Prior Literature & Baselines alongside the paraphrased claims they support: preserve nominal author-year style when provided (mixing narrative, e.g., Author et al. (Year), and parenthetical, e.g., (Author et al., Year)), and replicate the exact numeric bracket citations (e.g., [1], [2, 5]) when numeric citations are provided. Never invent author names, years, or citation numbers not present in the facts. Explain the proposed methodology clearly (using inline LaTeX $...$ only when mathematical formulations are present in the facts), mention resource or repository links if provided, and conclude the introduction in cohesive academic prose synthesizing the paper's main findings and contributions without forcing a templated bulleted list.
-  3. conclusion: A formal closing section strictly within 180 to 250 words (target ~210 words, 1 to 2 substantial paragraphs) synthesizing the main findings, noting limitations or scope boundaries, and outlining future directions.
+  [REQUISITOS DAS SEÇÕES]
+  1. abstract: Um resumo denso e autocontido estritamente entre 130 e 170 palavras (meta aproximada de 145 palavras) enquadrando o problema, a abordagem proposta, os principais mecanismos técnicos e os achados empíricos essenciais.
+  2. introduction: Uma introdução abrangente estritamente entre 550 e 750 palavras (meta aproximada de 600 palavras, desenvolvida em 4 a 6 parágrafos substanciais) contextualizando o domínio, motivando e formalizando o problema, e fundamentando ativamente afirmações de contexto nos trabalhos da seção Prior Literature & Baselines. Replique exatamente os marcadores de citação fornecidos em Prior Literature & Baselines junto às afirmações parafraseadas que eles sustentam: preserve o estilo nominal autor-ano quando fornecido (mesclando citações narrativas, ex.: Autor et al. (Ano), e parentéticas, ex.: (Autor et al., Ano)), e replique exatamente as citações numéricas entre colchetes (ex.: [1], [2, 5]) quando fornecidas nesse formato. Nunca invente nomes de autores, anos ou números de citação que não constem nos fatos fornecidos. Explique a metodologia proposta com clareza (utilizando LaTeX inline $...$ somente quando formulações matemáticas estiverem presentes nos fatos), mencione links de recursos ou repositórios se forem indicados, e encerre a introdução em prosa acadêmica coesa sintetizando os principais achados e contribuições do trabalho sem forçar tópicos com marcadores.
+  3. conclusion: Uma seção de encerramento formal estritamente entre 180 e 250 palavras (meta aproximada de 210 palavras, 1 a 2 parágrafos substanciais) sintetizando os principais achados, destacando limitações ou fronteiras de escopo e delineando direcionamentos para trabalhos futuros.
 
-  [OUTPUT FORMAT]
-  Output strictly a valid JSON object:
+  [FORMATO DE SAÍDA]
+  Produza estritamente um objeto JSON válido:
   {
     "abstract": "...",
     "introduction": "...",
@@ -171,7 +171,7 @@ Para viabilizar o treinamento supervisionado de modelos detectores, é necessár
 
 ### Pré-processamento de Paridade Científica
 
-O arquivo bruto gerado (`data/raw/synthetic_ai.jsonl`) passa localmente pela mesma esteira determinística de pré-processamento aplicada aos artigos humanos (`src.preprocessing`), gerando o corpus `data/processed/synthetic_corpus.jsonl` com 1.494 artigos rotulados com a classe 1 (IA).
+O arquivo bruto gerado (`data/raw/synthetic_ai.jsonl`) passa localmente pela mesma esteira determinística de pré-processamento aplicada aos artigos humanos (`src.preprocessing`), gerando o corpus `data/processed/synthetic_corpus.jsonl` com 1.461 artigos rotulados com a classe 1 (IA).
 
 * **Blindagem Idêntica:** Neutralização completa de fórmulas (`[MATH]`), citações (`[CITE]`) e links (`[URL]`), impedindo que o classificador aprenda atalhos espúrios.
 * **Recuperação de Metadados:** Reconstituição de conferência, ano de publicação e autores da semente original para viabilizar validação cruzada balanceada por estrato.
@@ -187,11 +187,11 @@ Os experimentos interativos, a geração em larga escala com aceleradores de har
 
 2. **[`end_to_end_pipeline.ipynb`](src/notebooks/end_to_end_pipeline.ipynb):**  
    Caderno principal e entregável do projeto. Centraliza todas as fases empíricas em um fluxo executável único:
-   * **Seção 1 (Setup & Environment):** Instalação de bibliotecas, sementes determinísticas (`seed = 42`) e inspeção de aceleração por GPU.
-   * **Seção 2 (Data Acquisition & Corpus Overview):** Resolução dinâmica de caminhos (compatível com execução local ou download automático das versões comprimidas `.jsonl.gz` direto do GitHub no Google Colab), carregamento das partições e montagem do conjunto de modelagem de 2.994 artigos (1.500 humanos e 1.494 sintéticos).
-   * **Seção 3 (Linguistic Characterization):** Análise contrastiva quantitativa entre `Human` e `AI` (tabela de distribuição por conferência e ano, boxplots de comprimento por seção em `Abstract`, `Introduction` e `Conclusion` com testes de significância, curvas de densidade para burstiness sentencial, densidade lexical e complexidade sintática, POS-tagging com legenda de siglas, templates sintáticos, n-gramas por incidência documental e evolução diacrônica longitudinal do vocabulário de excesso sobre os 13.325 artigos coletados).
-   * **Seção 4 (Supervised Modelling & Optuna Tuning):** Treinamento supervisionado com validação cruzada em 5 folds agrupada por artigo e busca bayesiana de hiperparâmetros com Optuna.
-   * **Seção 5 (Longitudinal Temporal Analysis):** Avaliação de infiltração na série histórica 2015-2025 com correção estatística de prevalência (Rogan-Gladen) e intervalos de confiança por bootstrap.
+   * **Seção 1 (Configuração e Ambiente):** Instalação de bibliotecas, sementes determinísticas (`seed = 42`) e inspeção de aceleração por GPU.
+   * **Seção 2 (Aquisição de Dados e Visão Geral do Corpus):** Resolução dinâmica de caminhos (compatível com execução local ou download automático das versões comprimidas `.jsonl.gz` direto do GitHub no Google Colab), carregamento das partições e montagem do conjunto de modelagem de 2.961 artigos (1.500 humanos e 1.461 sintéticos).
+   * **Seção 3 (Caracterização Linguística):** Análise contrastiva quantitativa entre texto humano e de IA (tabela de distribuição por conferência e ano, diagramas de caixa de comprimento por seção em resumo, introdução e conclusão com testes de significância, curvas de densidade para burstiness sentencial, densidade lexical e complexidade sintática, etiquetagem morfossintática POS com legenda de siglas, estruturas sintáticas, n-gramas por incidência documental e evolução temporal longitudinal do vocabulário de excesso sobre os 13.325 artigos coletados).
+   * **Seção 4 (Modelagem Supervisionada e Otimização com Optuna):** Treinamento supervisionado com validação cruzada em 5 grupos (folds) agrupada por artigo e busca bayesiana de hiperparâmetros com Optuna.
+   * **Seção 5 (Análise Temporal Longitudinal):** Avaliação de infiltração na série histórica 2015-2025 com correção estatística de prevalência (Rogan-Gladen) e intervalos de confiança por bootstrap.
 
 ---
 
@@ -202,10 +202,8 @@ Projeto-Final-APPNL/
 ├── data/
 │   ├── processed/          # Conjuntos processados e versões comprimidas (.jsonl.gz)
 │   └── raw/                # Dados brutos coletados e saídas brutas do LLM
-├── spec/
-│   └── plan.md             # Especificação e plano técnico detalhado
 ├── src/
-│   ├── coleta/             # Scripts modulares de coleta via scraping e APIs
+│   ├── coleta/             # Scripts modulares de coleta via raspagem e APIs
 │   │   ├── collector.py
 │   │   └── utils.py
 │   ├── notebooks/          # Cadernos Jupyter de experimentação e modelagem
