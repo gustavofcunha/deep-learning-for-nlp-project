@@ -17,10 +17,14 @@ Papers were obtained exclusively from official open-access repositories:
 Sampling was structured across 44 strata (4 conferences $\times$ 11 years) divided into two temporal horizons:
 
 1. **Pre-2020 Period ($\le 2019$):** Represents the historical human baseline prior to modern conversational LLMs.
-   * **AI Seeds (`seed_discarded`):** 1,500 human abstracts used to condition synthetic generation in the downstream phase. Original texts are strictly excluded from classifier training to prevent information leakage.
-   * **Human Ground Truth (`human_ground_truth`):** 1,500 human papers reserved for the supervised modeling split (label 0). Within each individual stratum, the number of seeds strictly equals the number of training papers ($N_{\text{seed}} = N_{\text{human}}$), shielding the classifier against spurious publication year or venue correlations.
-   * **Temporal Blind Control (`human_temporal_blind`):** 2,462 additional historical human papers reserved to audit false positive rates during a timeframe with zero expected AI incidence.
-2. **Post-2020 Period ($\ge 2020$):** A total of **7,863 unlabeled papers** (`longitudinal_unlabeled`), preserved in full to maximize sample density and statistical power when measuring year-over-year AI adoption.
+   * **`seed_discarded` (1,500 papers):** Real human papers used to condition synthetic generation in the downstream phase. Original human texts are strictly excluded from classifier training and feature selection to prevent topic leakage or memorization.
+   * **`human_ground_truth` (1,500 papers):** Real human papers reserved for the supervised modeling split (label 0). Within each individual stratum, the number of seeds strictly equals the number of training papers ($N_{\text{seed}} = N_{\text{human}}$), shielding the classifier against spurious publication year or venue correlations.
+   * **`human_temporal_blind` (2,462 papers):** Additional historical human papers strictly held out from training. Serving as an empirical pre-LLM baseline where true AI prevalence is zero ($\alpha = 0$), it forms the historical anchor for longitudinal evaluation.
+2. **Post-2020 Period ($\ge 2020$):** A total of 7,863 unlabeled papers (`longitudinal_unlabeled`), preserved in full to maximize sample density and statistical power.
+
+Together, `human_temporal_blind` (2015-2019) and `longitudinal_unlabeled` (2020-2025) form an uninterrupted 11-year chronological evaluation continuum (10,325 independent papers) held out entirely from model training. This longitudinal series serves two central research functions:
+* **Temporal Detection of AI Inflection Points:** Testing whether the trained detector (trained exclusively on `human_ground_truth` vs. `synthetic_ai`) identifies the expected inflection point and sharp surge in AI-assisted writing following the release of ChatGPT (GPT-3.5) in November 2022.
+* **Diachronic Linguistic Analysis:** Tracing the longitudinal propagation of excess vocabulary (such as *delve*, *intricate*, *pivotal*, and AI-favored framing verbs) and syntactic template drift across top-tier peer-reviewed proceedings from 2015 to 2025.
 
 ### Collection Engineering
 
@@ -45,12 +49,22 @@ Sampling was structured across 44 strata (4 conferences $\times$ 11 years) divid
 
 | Timeframe | Provenance Group (`provenance_type`) | Supervised Label | Count | Purpose in Study |
 | :--- | :--- | :---: | :---: | :--- |
-| **Pre-2020 ($\le 2019$)** | `seed_discarded` | `None` | 1,500 | Real human abstracts used to condition LLM synthetic generation; discarded from training. |
-| **Pre-2020 ($\le 2019$)** | `human_ground_truth` | `0` (Human) | 1,500 | Balanced human component for supervised classifier training and validation. |
-| **Pre-2020 ($\le 2019$)** | `human_temporal_blind` | `0` (Human) | 2,462 | Historical blind control group to audit false positive rates prior to public LLM availability. |
-| **Post-2020 ($\ge 2020$)** | `longitudinal_unlabeled` | `None` (Unlabeled) | 7,863 | Contemporary longitudinal time series for inference and yearly AI prevalence tracking. |
-| **Pre-2020 ($\le 2019$)** (AI Mirror) | `synthetic_ai` | `1` (AI) | 1,461 | Synthetic papers generated via `Qwen/Qwen2.5-7B-Instruct` from seeds; positive class in supervised modeling. |
-| **Global Total** | | | **14,786** | Consolidated corpus (13,325 collected papers + 1,461 AI-generated synthetic papers). |
+| **Pre-2020 ($\le 2019$)** | `seed_discarded` | `None` | 1,500 | Factual seeds to condition LLM synthetic generation; strictly excluded from training to prevent leakage. |
+| **Pre-2020 ($\le 2019$)** | `human_ground_truth` | `0` (Human) | 1,500 | Balanced pre-2020 human component for supervised classifier training and contrastive linguistic profiling (label 0). |
+| **Pre-2020 ($\le 2019$)** | `human_temporal_blind` | `0` (Human) | 2,462 | Historical pre-2020 blind control (zero true AI prevalence); pairs with 2020-2025 series for temporal auditing and diachronic analysis. |
+| **Post-2020 ($\ge 2020$)** | `longitudinal_unlabeled` | `None` (Unlabeled) | 7,863 | Contemporary longitudinal series (2020-2025) to measure post-ChatGPT (Nov 2022) adoption spikes and diachronic linguistic drift. |
+| **Pre-2020 ($\le 2019$)** (AI Mirror) | `synthetic_ai` | `1` (AI) | 1,418 | Parity-sanitized synthetic mirror papers generated via Qwen 2.5; positive class in supervised training (label 1). |
+| **Global Total** | | | **14,743** | Consolidated corpus (13,325 collected papers + 1,418 AI-generated synthetic papers). |
+
+#### Total Word Volume Processed Across Collected Papers
+
+| Conference | Papers | Abstract Words | Introduction Words | Conclusion Words | Total Words | Mean Words | Median Words |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **NeurIPS** | 3,999 | 667,980 | 2,549,998 | 796,994 | 4,014,972 | 1,004.0 | 944.0 |
+| **ICML** | 3,589 | 556,127 | 2,213,841 | 764,026 | 3,533,994 | 984.7 | 896.0 |
+| **ACL** | 3,246 | 479,359 | 1,697,248 | 726,461 | 2,903,068 | 894.4 | 820.0 |
+| **ICLR** | 2,491 | 428,830 | 1,391,349 | 505,966 | 2,326,145 | 933.8 | 875.0 |
+| **Total** | **13,325** | **2,132,296** | **7,852,436** | **2,793,447** | **12,778,179** | **959.0** | **884.0** |
 
 ---
 
@@ -98,11 +112,12 @@ python3 -m src.preprocessing -i data/raw/synthetic_ai.jsonl -o data/processed/sy
 
 To enable supervised detector training, pre-2020 human papers are paired with synthetic scientific papers generated by state-of-the-art open language models.
 
-### Two-Stage Generation Architecture
+### Three-Stage Generation Architecture
 
 1. **Technical Fact Extraction (Prompt 1):** From the 1,500 raw discarded human seeds in `data/raw/collected_corpus.jsonl` (`provenance_type: 'seed_discarded'`), the open-source model `Qwen/Qwen2.5-7B-Instruct` extracts the core technical challenge, formal mathematical formulations (when present), prior literature with exact citation markers paired with paraphrased summaries, and empirical findings, ignoring PDF extraction artifacts.
-2. **Synthetic Scientific Drafting (Prompt 2):** Based exclusively on the factual summary, the model drafts three complete sections (Abstract, Introduction, and Conclusion) in natural academic prose, matching human word-count targets and replicating extracted citations (author-year or numeric) without verbatim source copying.
-3. **Discarding Human Seed Text:** Original texts of the seeds are permanently excluded from classifier training to prevent topic or lexical leakage.
+2. **Synthetic Scientific Mirror Drafting (Prompt 2):** Based exclusively on the factual summary, the model drafts an initial pass of the three sections (Abstract, Introduction, and Conclusion) in formal academic prose, incorporating the extracted citations (author-year or numeric) without verbatim source copying.
+3. **Iterative Length and Authorial Voice Expansion (Prompt 3):** Initial drafts produced by language models frequently exhibit severe length compression (introductions averaging ~240 words compared to ~560 in human papers) and formulaic openings ("This paper addresses...", "In the realm of..."), introducing shortcut learning vulnerabilities. Prompt 3 executes a multi-turn refinement loop (Madaan et al., NeurIPS 2023) using per-request token bounds (`min_tokens`, `max_tokens` in `vLLM`) to expand introductions and conclusions until matching the exact target word count of the corresponding seed paper within a strict +/-10% window, while converting impersonal third-person openings into natural first-person plural authorial voice ("we/our").
+4. **Discarding Human Seed Text:** Original texts of the seeds are permanently excluded from classifier training to prevent topic or lexical leakage.
 
 ### Official Generation Prompts
 
@@ -169,45 +184,112 @@ To enable supervised detector training, pre-2020 human papers are paired with sy
   }
   ```
 
+#### Prompt 3: Iterative Length and Authorial Voice Expansion
+
+* **System Prompt:**
+  ```text
+  You are a senior machine learning and computational linguistics researcher revising a manuscript for a top-tier peer-reviewed conference (ACL, EMNLP, NeurIPS, ICML, or ICLR). Your task is to expand, deepen, and stylistically refine the provided draft section using exclusively the supplied technical facts.
+  NON-NEGOTIABLE ACCEPTANCE CRITERIA (AUTOMATICALLY VERIFIED BY CODE):
+  1. STRICT WORD-COUNT GATE: Your output is parsed and word-counted automatically. You MUST hit the exact target word count within the mandatory +/-10% window [min_words, max_words] specified in the prompt. Any output with fewer than min_words or more than max_words is automatically rejected and triggers a forced retry. Never stop writing early; develop every paragraph fully until you reach target_words.
+  2. MANDATORY FIRST-PERSON PLURAL VOICE ('we', 'our', 'us'): Always write in active, natural first-person plural (e.g., 'We investigate...', 'To overcome this bottleneck, we formulate...', 'Our empirical analysis shows...'). NEVER use impersonal third-person self-references such as 'This paper addresses...', 'This paper proposes...', 'This study', 'This work', or 'The authors'.
+  3. BAN ON AI CLICHES: Never use 'In the realm of', 'In recent years, there has been', 'delve into', 'pivotal', 'testament to', or mechanical transition chains ('Moreover,', 'Furthermore,', 'Additionally,').
+  4. NATURAL SENTENCE BURSTINESS: Vary sentence length organically, alternating between concise declarative sentences (10-16 words) and multi-clause analytical explanations (25-42 words).
+  5. COHESIVE PARAGRAPHS WITHOUT BULLETS: Write in continuous paragraphs separated by '\n\n'. Convert any bulleted contribution lists into flowing narrative prose.
+  6. STRICT JSON OUTPUT: Output exclusively a valid JSON object containing the single requested section key.
+  ```
+
+* **User Prompt Template (Introduction Expansion Example):**
+  ```text
+  MANDATORY LENGTH REQUIREMENT: Write an expanded, technically deep Introduction of EXACTLY {target_words} words (ALLOWED ACCEPTANCE WINDOW: strictly between {min_words} and {max_words} words).
+  Your current draft has only {current_words} words ({delta_words_str}, expansion factor: {expansion_ratio}x). Any response below {min_words} words or above {max_words} words WILL BE REJECTED by the automated length verifier.
+
+  [TECHNICAL FACTS]
+  Problem Statement: {problem_statement}
+  Core Methodology & Formulations: {core_methodology}
+  Prior Literature & Baselines: {related_work_and_baselines}
+  Empirical Findings: {empirical_findings}
+  Resources & URLs: {resources_and_urls}
+  Main Conclusions: {main_conclusions}
+
+  [CURRENT INTRODUCTION DRAFT ({current_words} words)]
+  {current_draft}
+  {feedback_block}
+  [MANDATORY EXPANSION & VOICE PLAN TO HIT {target_words} WORDS ({min_words}-{max_words} words)]
+  1. Paragraph Budget: Structure the Introduction into {n_paras} substantial paragraphs of approximately {words_per_para} words each (totaling {target_words} words, strictly within [{min_words}, {max_words}] words).
+  2. Authorial Voice: Replace all third-person constructions ('This paper addresses...', 'This paper proposes...', 'This study...') with active first-person plural prose ('we', 'our', 'us').
+
+  [OUTPUT FORMAT]
+  Output strictly a valid JSON object whose "introduction" value contains between {min_words} and {max_words} words:
+  {
+    "introduction": "..."
+  }
+  ```
+
 ### Scientific Parity Preprocessing
 
-The raw generated file (`data/raw/synthetic_ai.jsonl`) passes locally through the exact same deterministic preprocessing pipeline applied to human papers (`src.preprocessing`), producing the corpus `data/processed/synthetic_corpus.jsonl` with 1,461 articles labeled as class 1 (AI).
+The raw generated file passes locally through the exact same deterministic preprocessing pipeline applied to human papers (`src.preprocessing`), producing the corpus `data/processed/synthetic_corpus.jsonl` with 1,418 articles labeled as class 1 (AI).
 
 * **Identical Shielding:** Complete neutralization of formulas (`[MATH]`), citations (`[CITE]`), and links (`[URL]`), preventing classifiers from learning spurious layout shortcuts.
 * **Metadata Recovery:** Reconstitution of conference venue, publication year, and authors from the original seed to enable balanced stratified cross-validation.
 
 ---
 
-## 4. Execution and Experimentation Notebooks
+## 4. Contrastive Linguistic Characterization
 
-Interactive experiments, large-scale hardware-accelerated generation, and the end-to-end modeling and inference pipeline are organized in [`src/notebooks/`](src/notebooks/):
+The repository implements a comprehensive quantitative comparison between human scientific writing and LLM generation across the balanced modeling corpus (1,500 human papers vs. 1,418 synthetic papers), alongside longitudinal tracking across all 13,325 collected papers (2015 to 2025).
 
-1. **[`qwen_synthetic_generation.ipynb`](src/notebooks/qwen_synthetic_generation.ipynb):**  
-   Parameterized notebook for batch generation of mirrored synthetic scientific papers. Designed for dual Nvidia Tesla T4 GPU clusters (Kaggle or Google Colab), orchestrating `Qwen/Qwen2.5-7B-Instruct` via `vLLM` with 4-bit AWQ quantization to fit within VRAM constraints. Executes two-stage factual extraction and stores raw records in `data/raw/synthetic_ai.jsonl`.
+### 4.1 Section Lengths and Surface Mask Parity
+* **Section Depth Disparity:** AI text exhibits significant length compression ($p < 0.05$). Introductions are more than twice as long in human papers (`521` vs. `231` median words, with IQR of `316` vs. `52`), and conclusions are moderately shorter (`144` vs. `101` median words, IQR of `111` vs. `23`). Abstracts remain constrained near venue length limits (`143` vs. `112` words).
+* **Parity on Surface Masks:** Masked citation density (`8.2` median in AI vs. `10.0` per 1,000 words in Human) and formula blocks (`0.0` median, mean `3.5` in AI vs. `4.2` in Human) align closely, confirming that classifiers cannot exploit surface placeholder absences as trivial detection shortcuts.
 
-2. **[`end_to_end_pipeline.ipynb`](src/notebooks/end_to_end_pipeline.ipynb):**  
-   Core notebook and primary project deliverable. Unifies all empirical stages into a single executable workflow:
-   * **Section 1 (Setup & Environment):** Dependency installation, deterministic random seeds (`seed = 42`), and GPU hardware accelerator inspection.
-   * **Section 2 (Data Acquisition & Corpus Overview):** Dynamic path resolution (supporting local execution or automated download of compressed `.jsonl.gz` releases directly from GitHub when running on Google Colab), partition loading, and construction of the 2,961-paper modeling split (1,500 human ground truth and 1,461 synthetic papers).
-   * **Section 3 (Linguistic Characterization):** Contrastive quantitative analysis between human and AI writing (distribution table across conferences and years, section length boxplots for Abstract, Introduction, and Conclusion with statistical hypothesis tests, density curves for sentential burstiness, lexical density, and syntactic complexity, part-of-speech POS tagging with acronym glossaries, syntactic structures, document incidence n-grams, and longitudinal diachronic evolution of excess vocabulary across all 13,325 collected papers).
-   * **Section 4 (Supervised Modeling & Optuna Tuning):** Supervised classification with 5-fold cross-validation grouped by paper identifier and Bayesian hyperparameter optimization with Optuna.
-   * **Section 5 (Longitudinal Temporal Analysis):** Infiltration evaluation across the 2015-2025 historical timeline using Rogan-Gladen statistical prevalence adjustment and bootstrap confidence intervals.
+### 4.2 Morphosyntactic Profiling and Rhythm Anomalies
+* **Sentence Length Rhythm (Burstiness):** Mean sentence lengths match closely (`23.8` words in Human vs. `24.4` in AI), but AI exhibits a 38% reduction in sentence length coefficient of variation (`26.5%` vs. `42.6%` median CV, $p < 0.05$), reflecting a flat, monorhythmic pacing.
+* **Syntactic Complexity:** Shannon entropy of POS 3-grams drops from `7.40` to `6.83` bits ($p < 0.05$), driven by rigid formulaic clausal templates (`NOUN -> DET -> NOUN -> VERB` and `DET -> NOUN -> VERB -> DET` appearing at $4\times$ human rates).
+* **Assertive Informational Style:** AI text features $+67\%$ higher present participle clause density (`40.9` vs. `24.5` VBG per 1,000 words), double the rate of emphatic modifiers (`4.4` vs. `1.6`), while cutting personal pronouns by half (`21.8` vs. `44.8`, $-51\%$) and passive voice by half (`5.9` vs. `11.4`, $-49\%$).
+
+### 4.3 Framing N-Grams and Longitudinal Infiltration
+* **Discursive Framing Markers:** AI relies heavily on formulaic framing verbs and nouns: `"addresses"` (75.4% in AI vs. 4.5% in Human, $15.1\times$), `"the challenge of"` (55.9% vs. 1.5%, $28.7\times$), `"findings"` (59.4% vs. 6.5%), and `"demonstrates"` (41.3% vs. 6.3%), whereas human authors anchor arguments with qualifying discourse markers (`"in this"`, `"paper we"`, `"example"`, `"since"`).
+* **Longitudinal Infiltration in Real Literature:** Tracking these discovered markers across all 13,325 real published papers (2015-2025) isolates 25 statistically significant shifting terms ($p_{\text{FDR}} < 0.05$). Real proceedings show sharp post-2022 surges in AI-favored framing words: `enhance` jumped from 3.6% to 22.4% ($6.2\times$), `address` from 24.8% to 42.1%, `limitations` from 8.3% to 24.2%, and papers containing at least one literature excess marker climbed from 37.7% in 2022 to 74.0% in 2025.
 
 ---
 
-## 5. Repository Structure
+## 5. Execution and Experimentation Notebooks
+
+Interactive experiments, large-scale hardware-accelerated generation, and the end-to-end modeling pipeline are organized in [`src/notebooks/`](src/notebooks/):
+
+1. **[`qwen_synthetic_generation.ipynb`](src/notebooks/qwen_synthetic_generation.ipynb):**  
+   Parameterized notebook for batch generation of mirrored synthetic scientific papers. Designed for dual Nvidia Tesla T4 GPU clusters (Kaggle or Google Colab), orchestrating `Qwen/Qwen2.5-7B-Instruct` via `vLLM` with 4-bit AWQ quantization to fit within VRAM constraints. Executes two-stage factual extraction and initial mirror drafting.
+
+2. **[`qwen_synthetic_expansion_v2.ipynb`](src/notebooks/qwen_synthetic_expansion_v2.ipynb):**  
+   Standalone iterative multi-turn refinement and length-matching notebook (Madaan et al., NeurIPS 2023). Enforces per-request `min_tokens` and `max_tokens` bounds in `vLLM` to expand Introductions and Conclusions until hitting target seed section lengths within +/-10%, converting third-person openings ("This paper addresses...") into active first-person plural authorial voice ("we/our").
+
+3. **[`end_to_end_pipeline.ipynb`](src/notebooks/end_to_end_pipeline.ipynb):**  
+   Core notebook and primary project deliverable. Unifies all empirical stages into a single executable workflow:
+   * **Section 1 (Setup & Environment):** Dependency installation, deterministic random seeds (`seed = 42`), Google Drive mounting, and GPU hardware accelerator inspection.
+   * **Section 2 (Data Acquisition & Corpus Overview):** Dynamic path resolution (supporting local execution or automated download of compressed `.jsonl.gz` releases directly from GitHub when running on Google Colab), partition loading, and construction of the balanced 2,918-paper modeling split (1,500 human ground truth and 1,418 synthetic papers).
+   * **Section 3 (Linguistic Characterization):** Contrastive quantitative analysis between human and AI writing (distribution table across conferences and years, section length boxplots for Abstract, Introduction, and Conclusion with statistical hypothesis tests, density curves for sentential burstiness, lexical density, and syntactic complexity, part-of-speech POS tagging with acronym glossaries, syntactic structures, document incidence n-grams, and longitudinal diachronic evolution of excess vocabulary across all 13,325 collected papers).
+   * **Section 4 (Supervised Modeling & Cross-Validation):** Supervised classification with 5-fold cross-validation grouped by paper identifier comparing DeBERTa-v3 and SciBERT using sliding window chunk pooling, automated checkpoint persistence to Google Drive staging, and length-shortcut auditing via signal decomposition.
+
+---
+
+## 6. Repository Structure
 
 ```text
 Projeto-Final-APPNL/
 ├── data/
 │   ├── processed/          # Processed datasets and compressed releases (.jsonl.gz)
 │   └── raw/                # Raw collected data and raw LLM generation outputs
+├── models_fine_tuned/
+│   └── v1/                 # Fine-tuned DeBERTa-v3 and SciBERT checkpoints (.safetensors) and OOF arrays
+├── scripts/
+│   └── import_colab_artifacts.py # Automated extractor for Colab checkpoint archives
 ├── src/
 │   ├── coleta/             # Modular web scraping and API collection scripts
 │   │   ├── collector.py
 │   │   └── utils.py
 │   ├── notebooks/          # Interactive Jupyter experiment and modeling notebooks
 │   │   ├── end_to_end_pipeline.ipynb
+│   │   ├── qwen_synthetic_expansion_v2.ipynb
 │   │   └── qwen_synthetic_generation.ipynb
 │   └── preprocessing/      # 13-stage deterministic text sanitization pipeline
 │       ├── __init__.py

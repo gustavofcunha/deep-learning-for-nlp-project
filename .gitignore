@@ -25,3 +25,12 @@ Thumbs.db
 
 # Especificações e planos locais
 spec/
+
+# Modelos e checkpoints pesados (>100MB proibidos pelo GitHub)
+checkpoints_models/
+models_fine_tuned/**/*.safetensors
+models_fine_tuned/**/*.bin
+models_fine_tuned/**/*.pt
+models_fine_tuned/**/*.pth
+models_fine_tuned/**/*.zip
+*.zip
